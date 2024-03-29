@@ -1,0 +1,260 @@
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+<style>
+  body{
+    background-color:#333
+  }
+*{padding:0px; margin:0px;}
+.message_from{float:left;}
+.message_to{float:right;}
+  .clear
+            {
+		padding:10px;
+                clear: both;
+           
+
+            }
+</style>
+</head>
+<body>
+<script src="https://code.jquery.com/ui/1.12.0/jquery-ui.js"></script>
+<script language="javascript" type="text/javascript">  
+var $j = jQuery.noConflict();
+document.addEventListener('DOMContentLoaded', function () {
+  if (!Notification) {
+    return;
+  }
+
+  if (Notification.permission !== "granted")
+    Notification.requestPermission();
+});
+
+function notifyMe(title,message,id) {
+  if (Notification.permission !== "granted")
+    Notification.requestPermission();
+  else {
+    var notification = new Notification(title, {
+      icon: 'https://upload.wikimedia.org/wikipedia/commons/c/c7/Chat.png',
+      body: message,
+    });
+
+    notification.onclick = function () {
+	window.focus();	
+	showWindow(id);
+    };
+
+  }
+
+}
+
+
+var audio = new Audio('http://devsys.lean-production-shop.de/ding.mp3');
+
+
+
+var admin=false;
+
+var myname="";
+
+
+
+
+var ctrlDown = false;
+$j(document).keydown(function(e) {
+        if (e.keyCode == 17 || e.keyCode == 91) ctrlDown = true;
+    }).keyup(function(e) {
+        if (e.keyCode == 17 || e.keyCode == 91) ctrlDown = false;
+    });
+
+function onKeyDown(e) {
+if (e.keyCode == 13) {
+        if (e.shiftKey) {
+        	return true;
+        }
+	else{
+		sendMsg(this);
+		this.value="";
+		return false;
+	}
+    }
+    return true;
+    //if(!ctrlDown&&event.keyCode == 13) {
+//	sendMsg(ele);
+  //  }
+}
+var to=-1;
+function sendMsg(me){
+
+        var mymessage = $j("#message").val(); //get message text
+
+        if(mymessage == ""){ //emtpy message?
+                alert("Enter Some message Please!");
+                return;
+        }
+	if(myname=="")
+		myname=$j("#myname").val();
+	
+
+                
+        //prepare json data
+        var msg = {
+                type: "usermsg",
+                to: this.to,
+                message: mymessage,
+                name: myname
+        };
+
+        //convert and send data to server
+        websocket.send(JSON.stringify(msg));
+        //$j('#message_box').append("<div><span class=\"user_name\" style=\"color:#"+"000000"+"\">"+myname+"</span> : <span class=\"user_message\">"+mymessage+"</span></div>");
+        $j('#message').val(''); //reset text
+        var d = $j('#message_box');
+        d.scrollTop(d.prop("scrollHeight"));
+        
+
+}
+var that=this;
+$j(document).ready(function(){
+	$j("#message").keydown(onKeyDown);
+
+	//create a new WebSocket object.
+	var wsUri = "ws://62.214.160.146:9042/"; 	
+	websocket = new WebSocket(wsUri); 
+	
+	websocket.onopen = function(ev) { // connection is open 
+
+		$j('#message_box').append("<div class=\"message_from\"><b>Wellcome to Chat...</b></div>"); //notify user
+		$j('#message_box').append("<div class=\"clear\"></div>");
+
+                
+		
+	}
+
+	//#### Message received from server?
+	websocket.onmessage = function(ev) {
+
+		var msg = JSON.parse(ev.data); //PHP sends Json data
+		var type = msg.type; //message type
+		var umsg = msg.message; //message text
+		var uname = msg.name; //user name
+		var ucolor = msg.color; //color
+		var from=msg.from;
+		var myown=msg.myown;
+
+		if(uname==="")
+			if(msg.id!==undefined)
+				uname="Kunde "+msg.id;
+			else
+				uname="Kunde "+from;
+		if(!admin)
+			that.to=from;
+
+		if(type == 'usermsg') 
+		{
+
+			audio.play();
+
+			
+						var mb=$j('#message_box');
+
+			if(myown==true)
+                                mb.append("<div class=\"message_to\"><span class=\"user_message\">"+umsg+"</span></div>");
+                        else
+			{
+                                mb.append("<div class=\"message_from\"><span class=\"user_message\"><b>"+uname+"</b><br>"+umsg+"</span></div>");
+			}
+						mb.append("<div class=\"clear\"></div>");
+                                
+
+			
+			                        var d = $j('#message_box');
+                        d.scrollTop(d.prop("scrollHeight"));
+                        			
+			if(myown) return;
+			if(windows[from].find("#ctts").prop( "checked" )){
+				var msg = new SpeechSynthesisUtterance(uname+": "+umsg);
+				window.speechSynthesis.speak(msg);
+			}
+			notifyMe(uname,umsg,from);
+
+
+
+		}
+
+		if(type == 'system')
+		{
+			//$j('#message_box').append("<div class=\"system_msg\">"+umsg+"</div>");
+		}
+				if(type == 'adminison'){
+                	$j('#chat_wrapper').show();
+		}
+                		
+		if(type == 'yourID')
+                {
+			var myID   = "0";
+			if(myID==0)
+			{
+				myID=getID(100,10000);
+			}
+			//prepare json data
+        		var msg = {
+				type: "myID",
+        		        myID: myID,
+                		name: myname
+        		};
+        		//convert and send data to server
+        		websocket.send(JSON.stringify(msg));
+
+                }
+		if(type == 'yourNewID')
+		{
+			localStorage.setItem("my_chat_id",msg.id);
+		}
+		
+		
+
+
+	};
+	
+	websocket.onerror	= function(ev){$j('#message_box').append("<div class=\"system_error\">Error Occurred - "+ev.data+"</div>");}; 
+	websocket.onclose 	= function(ev){
+		
+                                $j('#chat_wrapper').hide();
+                	
+		$j('#message_box').append("<div class=\"system_msg\">Connection Closed</div>");
+	}; 
+});
+function getID(min, max) {
+    return Math.random() * (max - min) + min;
+}
+
+</script>
+<div id="chat_wrapper" style="position:fixed;background-color:#f9c822;
+    
+    width: 100%;
+    height: 100%;">
+       	<div class="window_title" style="height:30px;"></div>
+
+	<div id="content">
+		<div id="nameDiv" style="width:100%;display:table;">
+       		<label for="myname" style="display:table-cell;">Your name:</label>
+		<input type="text" name="message" id="myname" placeholder="user" style="display:table-cell; width:100%"/>
+		</div>
+		<br>
+                <div id="message_box"       style="width:auto;height:auto;overflow-y: scroll;background-color:#ffffff;" id="message_box"></div>
+        	<div class="panel" style="">
+				
+
+		<br>
+
+			<textarea id="message" placeholder="message..." style="position:relative;width:100%;box-sizing: border-box;"></textarea>
+                            <button id="send-btn" onclick="sendMsg(this);" style="position:relative;width:100px;float:right;">Send</button>
+        	</div>
+	</div>
+</div>
+</body>
+</html>
+
